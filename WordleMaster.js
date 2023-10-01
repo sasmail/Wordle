@@ -26,8 +26,8 @@ const letters = document.querySelectorAll('.box');
 //creating panda variable to be able to modify panda emoji later
 const panda = document.querySelector('.loading-bar');
 //length for answer
-const answerLength = 5;
-const rounds = 6;
+const ANSWER_LENGTH = 5;
+const ROUNDS = 6;
 
 
 /* PROGRAM START */
@@ -47,19 +47,42 @@ async function init() {
     isLoading = false;
     setPanda(false);
 
-
-    function input(letter) {
-        if (currentGuess.length < answerLength) {
-            currentGuess += letter;
-        } else {
-            currentGuess = currentGuess.substring(0, currentGuess.length - 1) + letter;
+    document.addEventListener('keydown', function handleKeyStroke(event) {
+        if (done || isLoading) {
+            // do nothing;
+            return;
         }
 
-        letters[answerLength * currentRow + currentGuess.length - 1].innerText = letter;
+        const action = event.key;
+
+        if (action === 'Enter') {
+            commitGuess();
+        } else if (action === 'Backspace') {
+            backspace();
+        } else if (isLetter(action)) {
+            input(action);
+        } else {
+            //do nothing
+        }
+    });
+
+    function input(letter) {
+        if (currentGuess.length < ANSWER_LENGTH) {
+            currentGuess += letter.toUpperCase();
+        } else {
+            currentGuess = currentGuess.substring(0, currentGuess.length - 1) + letter.toUpperCase();
+        }
+
+        letters[ANSWER_LENGTH * currentRow + currentGuess.length - 1].innerText = letter.toUpperCase();
+    }
+
+    function backspace() {
+        currentGuess = currentGuess.substring(0, currentGuess.length - 1);
+        letters[ANSWER_LENGTH * currentRow + currentGuess.length].innerText = '';
     }
 
     async function commitGuess() {
-        if (currentGuess.length !== answerLength) {
+        if (currentGuess.length !== ANSWER_LENGTH) {
             //do nothing
             return;
         }
@@ -67,14 +90,14 @@ async function init() {
         // check the API to see if it's a valid word
         // skip this step if you're not checking for valid words
         isLoading = true;
-        setLoading(isLoading);
+        //setLoading(isLoading);
         const res = await fetch("https://words.dev-apis.com/validate-word", {
             method: "POST",
             body: JSON.stringify({ word: currentGuess }),
         });
         const { validWord } = await res.json();
         isLoading = false;
-        setLoading(isLoading);
+        //setLoading(isLoading);
 
         // not valid, mark the word as invalid and return
         if (!validWord) {
@@ -88,82 +111,66 @@ async function init() {
         const map = makeMap(solutionWordParts);
         let allRight = true;
 
-        for (let i = 0; i < answerLength; i++) {
-            //marking as correct
-            if (guessParts[i] === solutionWordParts[i]) {
-                letters[currentRow * answerLength + i].classList.add("correct");
-                map(guessParts[i])--;
+        for (let i = 0; i < ANSWER_LENGTH; i++) {
+            let currentLetterBox = letters[currentRow * ANSWER_LENGTH + i];
+            let currentLetter = guessParts[i];
+
+            if (currentLetter == solutionWordParts[i]) {
+                // this letter is correct
+                currentLetterBox.classList.add("correct");
+                map[currentLetter]--;
             }
         }
 
-        for (let i = 0; i < answerLength; i++) {
-            if (guessParts[i] === solutionWordParts[i]) {
-                //do nothing, already done in first for-loop
-                //marking as close
-            } else if (guessParts.includes(solutionWordParts[i]) && map[guessParts] > 0) {
-                allRight = false;
-                letters[currentRow * answerLength + i].classList.add("close");
-            }
-            //marking as wrong
-            else {
-                allRight = false;
-                letters[currentRow * answerLength + i].classList.add("wrong");
+        for (let i = 0; i < ANSWER_LENGTH; i++) {
+            let currentLetterBox = letters[currentRow * ANSWER_LENGTH + i];
+            let currentLetter = guessParts[i];
+
+            if (currentLetter == solutionWordParts[i]) {
+                // this letter is correct
+                continue;
             }
 
-            // TODO did they win or loose?
+            allRight = false;
+            if (solutionWordParts.includes(currentLetter) && map[currentLetter] > 0) {
+                // this means that the letter is in the word but not in the correct place and for sure not yet discovered
+                currentLetterBox.classList.add("close");
+                continue;
+            }
 
-            currentRow++;
-            currentGuess = '';
-            if (allRight) {
-                // win
-                alert("you win");
-                document.querySelector(".brand").classList.add("winner");
-                done = true;
-              } else if (currentRow === ROUNDS) {
-                // lose
-                alert(`you lose, the word was ${word}`);
-                done = true;
-              }
-
+            if (!solutionWordParts.includes(currentLetter)) {
+                currentLetterBox.classList.add("wrong");
+            }
         }
 
-        function backspace() {
-            currentGuess = currentGuess.substring(0, currentGuess.length - 1);
-            letters[answerLength * currentRow + currentGuess.length].innerText = '';
+        // TODO did they win or loose?
+        currentRow++;
+        currentGuess = '';
+        if (allRight) {
+            // win
+            alert("you win");
+            document.querySelector(".brand").classList.add("winner");
+            done = true;
+        } else if (currentRow === ROUNDS) {
+            // lose
+            alert(`you lose, the word was ${solutionWord}`);
+            done = true;
         }
 
-        function markInvalidWord() {
-            for (let i = 0; i < ANSWER_LENGTH; i++) {
-              letters[currentRow * ANSWER_LENGTH + i].classList.remove("invalid");
-        
-              // long enough for the browser to repaint without the "invalid class" so we can then add it again
-              setTimeout(
+    }
+
+    function markInvalidWord() {
+        for (let i = 0; i < ANSWER_LENGTH; i++) {
+            letters[currentRow * ANSWER_LENGTH + i].classList.remove("invalid");
+
+            // long enough for the browser to repaint without the "invalid class" so we can then add it again
+            setTimeout(
                 () => letters[currentRow * ANSWER_LENGTH + i].classList.add("invalid"),
                 10
-              );
-            }
-          }
-
-        document.addEventListener('keydown', function handleKeyStroke(event) {
-            if (done || isLoading) {
-                // do nothing;
-                return;
-              }
-            
-            const action = event.key;
-
-            if (action === 'Enter') {
-                commitGuess();
-            } else if (action === 'Backspace') {
-                backspace();
-            } else if (isLetter(action)) {
-                input(action);
-            } else {
-                //do nothing
-            }
-        });
+            );
+        }
     }
-};
+}
 
 /* HELPER METHODS */
 //function checking if user input is letter
